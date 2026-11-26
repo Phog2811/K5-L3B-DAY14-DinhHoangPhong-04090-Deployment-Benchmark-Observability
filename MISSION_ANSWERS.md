@@ -155,12 +155,39 @@ Header `X-Frame-Options: DENY` chứng tỏ request đã đi qua Nginx.
 
 > Deploy chính agent Part 6 (`06-lab-complete/`) theo lưu ý K5. Chi tiết URL + lệnh test: [DEPLOYMENT.md](DEPLOYMENT.md).
 
-### Exercise 3.1: Railway
+### Nền tảng chính: Render (Exercise 3.2)
 
-- URL: _(điền sau khi deploy — xem DEPLOYMENT.md)_
+- URL: **https://day14-agent-3q3m.onrender.com**. Deploy bằng Blueprint `06-lab-complete/render.yaml` (web Docker + Key Value `day14-redis`), từ commit `31adfed`.
+- 4 lệnh tự kiểm CP6, đo lúc 2026-11-26 17:31 (lệnh đầy đủ ở [DEPLOYMENT.md](DEPLOYMENT.md)):
+
+  ```text
+  health 200
+  ready 200
+  ask-no-key 401
+  {"question":"Hello","answer":"Agent đang hoạt động tốt! (mock response) Hỏi thêm câu hỏi đi nhé.","cost_usd":1.05e-05}
+  ask-with-key 200
+  rate-limit 11 requests (ngay sau 1 request ở trên): 200 200 200 200 200 200 200 200 200 429 429
+  ```
+
+  Rate limit 10 request/phút đã có 1 request "Hello" tính trước, nên request thứ 11 trong phút (thứ 10 của vòng lặp) bị 429. Điều này cho thấy Redis trên Render đang hoạt động: `/ready` trả 200, và bộ đếm rate limit được giữ trong Redis.
 - Screenshot: [dashboard](screenshots/dashboard.png), [running](screenshots/running.png), [test](screenshots/test.png)
 
-### Exercise 3.2: So sánh `railway.toml` và `render.yaml` (trong `06-lab-complete/`)
+### Exercise 3.1: Railway (đã thử, bị chặn ở bước upload)
+
+Đã làm đủ các bước bằng Railway CLI 5.75.0:
+
+- `railway login`, `railway init --name day14-agent`, `railway add --database redis`, `railway add --service agent`;
+- đặt `AGENT_API_KEY` (qua `--stdin`), `ENVIRONMENT`, `RATE_LIMIT_PER_MINUTE`, `DAILY_BUDGET_USD`, và `REDIS_URL=${{Redis.REDIS_URL}}`; biến này resolve thành `redis://default:***@redis.railway.internal:6379`.
+
+Khi chạy `railway up`, Railway trả về:
+
+```text
+We limited this workspace after detecting unusual activity. Upgrade to a paid plan to lift this restriction automatically.
+```
+
+Service Redis cũng ở trạng thái `Failed` vì cùng lý do. Đây là hạn chế của tài khoản, không phải lỗi code. Rubric cho phép chọn Railway **hoặc** Render, nên tôi deploy lên Render. Phần "nền tảng còn lại" là bảng so sánh bên dưới.
+
+### So sánh `railway.toml` và `render.yaml` (trong `06-lab-complete/`)
 
 | | `railway.toml` | `render.yaml` |
 |---|---|---|
@@ -410,4 +437,5 @@ Theo [RULES.md](RULES.md) mục 1. Công cụ: **Claude Code (Claude Opus)** ch�
 | 5 | Viết câu trả lời Part 1–5 | AI soạn nháp giải thích dựa trên code và output | Đối chiếu từng câu với code/dòng tương ứng |
 | 6 | Part 7 develop: load test, tail latency, eval v1/v2, sửa lỗi eval | AI chạy `load_test.py`/`run_eval.py`. Tìm 2 câu v2 trả sai (JWT, HPA) và thêm 2 mục vào knowledge base của `mock_llm.py`. Thêm histogram `agent_question_length_chars`. Viết workflow quality gate `.github/workflows/eval.yml` | v2 sau khi sửa đạt 23/23, 0 regression; v1 so với baseline v2 cho exit 1 (gate chặn được). Số liệu trong report khớp với `reports/*.json` |
 | 7 | Part 7 production: dựng stack, scale, trace, alert | AI phát hiện image production crash `No module named uvicorn` và sửa bằng `ENV PYTHONUSERBASE` trong Dockerfile. Phát hiện `docker compose run locust` tự reset số agent về 2, làm sai lần đo scale đầu, nên chạy lại với `--no-deps`. Chụp Grafana/Jaeger/Prometheus bằng Playwright. Chạy thí nghiệm A–E bằng script poll `/api/v1/alerts` | Kiểm số container trước/sau mỗi lần scale (`docker ps`). Đọc lại từng screenshot. Thời gian firing lấy từ log script, không ước lượng. `promtool test rules` SUCCESS |
+| 9 | Part 3: deploy | Sau khi tôi tự `railway login`, AI chạy Railway CLI để tạo project, Redis, biến môi trường; key sinh bằng `secrets.token_urlsafe(32)`, đặt qua `--stdin`, không ghi vào repo. `railway up` bị tài khoản chặn nên AI đề xuất chuyển sang Render Blueprint; tôi tự tạo Blueprint trên dashboard | AI chạy 4 lệnh CP6 trên URL Render: 200/200/401/200, thêm rate limit 429. Phát hiện `day14-agent.onrender.com` (không có hậu tố) là service của người khác, vì key trả 401, nên lấy đúng URL `-3q3m` từ dashboard |
 | 8 | Viết BENCHMARK_REPORT.md | AI soạn nháp phân tích từ JSON/CSV/log đã đo. Đọc sai panel Tokens/s (panel dạng stacked) nên phải sửa lại bằng truy vấn PromQL | Đối chiếu từng số với file nguồn trong `reports/`, `benchmark-results/` và log thí nghiệm |
