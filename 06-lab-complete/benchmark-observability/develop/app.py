@@ -97,6 +97,11 @@ AGENT_INFO = Gauge(
     ["version", "model"],
 )
 AGENT_INFO.labels(version=AGENT_VERSION, model=LLM_MODEL).set(1)
+# Exercise 7.1: Histogram (không dùng label) vì độ dài có vô số giá trị → label sẽ nổ cardinality
+QUESTION_LENGTH = Histogram(
+    "agent_question_length_chars", "Độ dài câu hỏi (ký tự)",
+    buckets=(20, 50, 100, 200, 500, 1000, 2000),
+)
 
 # ─────────────────────────────────────────────────────────
 # App
@@ -154,6 +159,7 @@ class AskResponse(BaseModel):
 
 @app.post("/ask", response_model=AskResponse)
 async def ask(body: AskRequest, request: Request):
+    QUESTION_LENGTH.observe(len(body.question))
     # v2 có bước retrieval (RAG) → chính xác hơn nhưng prompt dài hơn → tốn token hơn
     context = await mock_llm.search_knowledge_base(body.question) if AGENT_VERSION == "v2" else None
 

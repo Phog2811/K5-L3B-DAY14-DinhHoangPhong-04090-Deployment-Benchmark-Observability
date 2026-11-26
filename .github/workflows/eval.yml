@@ -1,0 +1,26 @@
+# Exercise 7.3 — Quality gate: chặn merge PR nếu eval của agent v2 tụt dưới 85%.
+# run_eval.py trả exit code 1 khi không đạt → step fail → job fail → branch protection chặn merge.
+name: quality-gate
+on:
+  pull_request:
+    paths:
+      - "06-lab-complete/benchmark-observability/develop/**"
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 06-lab-complete/benchmark-observability/develop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Start agent v2 (tắt lỗi giả lập để kết quả ổn định)
+        run: |
+          AGENT_VERSION=v2 MOCK_ERROR_RATE=0 PORT=8000 python app.py &
+          for i in $(seq 1 30); do curl -sf http://localhost:8000/health && break; sleep 1; done
+      - name: Eval + quality gate
+        run: python eval/run_eval.py --url http://localhost:8000 --min-accuracy 0.85
